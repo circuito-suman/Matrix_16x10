@@ -6,7 +6,7 @@
 #define BUZZER_PIN 17
 
 // Row pins (Example mapping)
-const int ROWS[10] = { 32, 33, 25, 26, 27, 14, 19, 13, 16, 4 };
+//const int ROWS[10] = { 32, 33, 25, 26, 27, 14, 19, 13, 16, 4 };
 
 // WiFi / OTA
 #define WIFI_SSID "Matrix_AP"
