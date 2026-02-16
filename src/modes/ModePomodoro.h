@@ -177,8 +177,8 @@ private:
     void setPixelLinear(int index, uint8_t color) {
         if (index >= 160) return;
         // Adjust for your specific Matrix Layout
-        int y = index / 16; 
-        int x = index % 16; 
+        int y = index / 10; // for 10 rows, then remainder gives us the column
+        int x = index % 10; // for 10 columns
         
         // Invert Y so index 0 starts at the Left instead of Right
         // (15 - y) flips the horizontal position
