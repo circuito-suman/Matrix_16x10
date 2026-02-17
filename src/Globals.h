@@ -42,3 +42,5 @@ extern SemaphoreHandle_t dispMutex;
 // Flag to trigger a mode switch
 extern volatile bool modeChangeRequest;
 extern volatile int requestedModeIndex;
+
+#define BUZZER_CHANNEL 4

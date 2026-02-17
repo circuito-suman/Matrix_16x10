@@ -4,6 +4,11 @@
 #include "Config.h"
 #include "Globals.h"
 #include "drivers/DisplayDriver.h"
+#include "ResourceMonitor.h"
+
+#ifndef VERSION_TAG
+  #define VERSION_TAG "DEV-LOCAL"
+#endif
 
 // --- INCLUDE MODES ---
 #include "modes/ModeMarble.h"
@@ -40,6 +45,10 @@ const int MODE_COUNT = 11;
 int modeIndex = 0;
 
 OneButton btn(btn_pin, true); 
+
+
+ResourceMonitor monitor; 
+
 
 // --- FAST LOGIC ENGINE ---
 void taskGameEngine(void * parameter) {
@@ -180,8 +189,11 @@ void toggleSpecialMode() {
 }
 
 void setup() {
-    // Serial.begin(115200); 
-    
+    Serial.begin(115200); 
+    monitor.setPort(8080);
+    monitor.begin();
+
+
     dispMutex = xSemaphoreCreateMutex();
     btn.attachClick(nextMode);
     btn.attachDoubleClick(resetMode);
@@ -189,7 +201,7 @@ void setup() {
 
     // Priority 2 for Game Engine
     xTaskCreatePinnedToCore(taskGameEngine, "Game", 8192, NULL, 2, NULL, 1);
-    xTaskCreatePinnedToCore(taskCommsWorker, "Comms", 4096, NULL, 0, NULL, 0);
+   // xTaskCreatePinnedToCore(taskCommsWorker, "Comms", 4096, NULL, 0, NULL, 0);
 
     setupDisplayDriver();
 }

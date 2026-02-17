@@ -44,8 +44,12 @@ public:
         }
 
         // Draw Paddles
-        for (int i = 0; i < 3; i++) setPixel((int)aiPos + i, 0, 1);
-        for (int i = 0; i < 3; i++) setPixel((int)playPos + i, 15, 1);
+        //for (int i = 0; i < 3; i++) setPixel((int)aiPos + i, 0, 1);
+        //for (int i = 0; i < 3; i++) setPixel((int)playPos + i, 15, 1);
+        auto drawPaddle = [&](int x, int y) { for(int i=0;i<3;i++) setPixel(x+i,y,1); };
+        drawPaddle((int)aiPos, 0);
+        drawPaddle((int)playPos, 15);
+        
         // Draw Ball
         setPixel((int)constrain(by, 0, 9), (int)constrain(bx, 0, 15), 1); 
     }
