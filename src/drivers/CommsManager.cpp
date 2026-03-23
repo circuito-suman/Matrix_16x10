@@ -175,9 +175,10 @@ static void sendModesResponse(uint8_t seq) {
 }
 
 static bool otaBegin(uint32_t totalSize, uint16_t chunkSize) {
-    if (gOta.active) {
-        Serial.println("[OTA] begin rejected: session already active");
-        return false;
+    if (gOta.active || gOtaHandler.active()) {
+        Serial.println("[OTA] begin: restarting active session");
+        gOtaHandler.reset();
+        gOta = OtaSession();
     }
     if (totalSize == 0) {
         Serial.println("[OTA] begin rejected: total size is zero");
@@ -191,6 +192,9 @@ static bool otaBegin(uint32_t totalSize, uint16_t chunkSize) {
 
     if (!gOtaHandler.begin(totalSize, chunkSize)) {
         Serial.println("[OTA] begin failed");
+        WiFi.mode(WIFI_AP);
+        WiFi.softAP(WIFI_SSID, WIFI_PASS);
+        Serial.printf("[OTA] WiFi AP restored SSID=%s\n", WIFI_SSID);
         return false;
     }
 
@@ -263,6 +267,14 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 
     void onDisconnect(NimBLEServer* pServer) override {
         Serial.println("[BLE] client disconnected");
+        if (gOta.active || gOtaHandler.active()) {
+            Serial.println("[OTA] aborting active session due to disconnect");
+            gOtaHandler.reset();
+            gOta = OtaSession();
+            WiFi.mode(WIFI_AP);
+            WiFi.softAP(WIFI_SSID, WIFI_PASS);
+            Serial.printf("[OTA] WiFi AP restored SSID=%s\n", WIFI_SSID);
+        }
         NimBLEDevice::startAdvertising();
     }
 };
