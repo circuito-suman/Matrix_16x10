@@ -184,6 +184,11 @@ static bool otaBegin(uint32_t totalSize, uint16_t chunkSize) {
         return false;
     }
 
+    // BLE OTA is sensitive to Wi-Fi/BLE coexistence on ESP32. Disable Wi-Fi to keep the BLE link stable.
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_OFF);
+    Serial.println("[OTA] WiFi disabled for BLE OTA");
+
     if (!gOtaHandler.begin(totalSize, chunkSize)) {
         Serial.println("[OTA] begin failed");
         return false;
@@ -573,7 +578,9 @@ void setupComms() {
 }
 
 void handleComms() {
-    ArduinoOTA.handle();
+    if (!gOta.active) {
+        ArduinoOTA.handle();
+    }
 
     while (true) {
         PendingWrite item;
@@ -592,7 +599,7 @@ void handleComms() {
         processPendingWrite(item);
     }
 
-    if (gVersionChar != nullptr) {
+    if (!gOta.active && gVersionChar != nullptr) {
         static unsigned long lastPushMs = 0;
         if (millis() - lastPushMs > 5000) {
             gVersionChar->setValue(getFwVersion());

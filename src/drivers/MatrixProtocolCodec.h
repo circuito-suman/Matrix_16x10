@@ -14,7 +14,6 @@ enum PacketType : uint8_t {
     GetVersion = 0x12,
     SetCanvas = 0x13,
     GetModes = 0x14,
-    SetBrightness = 0x15,
     OtaBegin = 0x20,
     OtaChunk = 0x21,
     OtaEnd = 0x22,
