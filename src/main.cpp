@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "Globals.h"
 #include "drivers/DisplayDriver.h"
+#include "drivers/CommsManager.h"
 #include "ResourceMonitor.h"
 
 #ifndef VERSION_TAG
@@ -22,11 +23,13 @@
 #include "modes/ModeScroll.h"
 #include "modes/ModeMatrix.h"
 #include "modes/ModePomodoro.h"
+#include "modes/BleCanvasMode.h"
 
 int savedModeIndex = 0;      // To remember where we were
 bool isSpecialMode = false;  // To track if we are in the special mode
 const int SPECIAL_MODE_ID = 10; // Index of ModeMatrix (or whichever you want)
-const int VISIBLE_MODES = 10;
+const int VISIBLE_MODES = 11;
+const int APP_CONTROLLED_MODE_ID = 11;
 // --- GLOBALS ---
 GFXcanvas1 canvas(MATRIX_WIDTH, MATRIX_HEIGHT);
 MPU6050 mpu(0x68, &Wire);
@@ -38,10 +41,14 @@ float calibX = 0, calibY = 0;
 SemaphoreHandle_t dispMutex;
 volatile bool modeChangeRequest = false;
 volatile int requestedModeIndex = 0;
+volatile int activeModeIndex = 0;
+String appScrollText = "circuito_suman";
+volatile int appScrollDirection = 0;
+volatile bool appScrollDirectionOverride = false;
 
 Mode* currentMode = nullptr;
-Mode* allModes[11]; 
-const int MODE_COUNT = 11;
+Mode* allModes[12]; 
+const int MODE_COUNT = 12;
 int modeIndex = 0;
 
 OneButton btn(btn_pin, true); 
@@ -107,6 +114,7 @@ void taskGameEngine(void * parameter) {
     allModes[8] = new ModeScroll();
     allModes[9] = new ModeMatrix();
     allModes[10] = new ModePomodoro();
+    allModes[11] = new BleCanvasMode();
 
     currentMode = allModes[0];
     currentMode->setup();
@@ -132,9 +140,12 @@ void taskGameEngine(void * parameter) {
         // B. Instant Mode Switching
         if (modeChangeRequest) {
             xSemaphoreTake(dispMutex, portMAX_DELAY);
-            modeIndex = requestedModeIndex % MODE_COUNT;
+            int normalized = requestedModeIndex % MODE_COUNT;
+            if (normalized < 0) normalized += MODE_COUNT;
+            modeIndex = normalized;
             currentMode = allModes[modeIndex];
             currentMode->setup();
+            activeModeIndex = modeIndex;
             modeChangeRequest = false;
             xSemaphoreGive(dispMutex);
         }
@@ -153,14 +164,18 @@ void taskGameEngine(void * parameter) {
 }
 
 void taskCommsWorker(void * parameter) {
-    while(true) vTaskDelay(100); 
+    setupComms();
+    while(true) {
+        handleComms();
+        vTaskDelay(5);
+    }
 }
 
 void nextMode() {
     if (isSpecialMode) return; // skip if in special mode
 
 
-    int next = modeIndex + 1;
+    int next = activeModeIndex + 1;
     if (next > (VISIBLE_MODES-1)) {
         next = 0; // Wrap back to Marble
     }
@@ -171,8 +186,7 @@ void nextMode() {
 void resetMode() {
     if (isSpecialMode) return; // skip if in special mode
 
-    modeIndex = 0;
-    requestedModeIndex = modeIndex; 
+    requestedModeIndex = 0;
     modeChangeRequest = true;
 }
 
@@ -201,7 +215,7 @@ void setup() {
 
     // Priority 2 for Game Engine
     xTaskCreatePinnedToCore(taskGameEngine, "Game", 8192, NULL, 2, NULL, 1);
-   // xTaskCreatePinnedToCore(taskCommsWorker, "Comms", 4096, NULL, 0, NULL, 0);
+    xTaskCreatePinnedToCore(taskCommsWorker, "Comms", 6144, NULL, 1, NULL, 0);
 
     setupDisplayDriver();
 }

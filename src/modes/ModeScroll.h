@@ -14,16 +14,25 @@ class ModeScroll : public Mode {
     ScrollDir currentDir = SCROLL_LEFT; // Default Direction
     ScrollDir pendingDir = SCROLL_LEFT; // Direction currently being held
 
-    // Text Configuration
-    const char* message = "circuito_suman"; 
     int msgLen;
     int totalLengthPixels;
+    String cachedMessage;
 
 public:
     const char* getName() override { return "4-Way Scroller"; }
     
     void setup() override { 
-        msgLen = strlen(message);
+        cachedMessage = appScrollText;
+        if (cachedMessage.length() == 0) {
+            cachedMessage = "circuito_suman";
+        }
+
+        if (appScrollDirectionOverride) {
+            currentDir = static_cast<ScrollDir>(constrain(appScrollDirection, 0, 3));
+            pendingDir = currentDir;
+        }
+
+        msgLen = cachedMessage.length();
         totalLengthPixels = msgLen * 6; // 6 pixels per char (5 width + 1 space)
         resetOffset();
         lastUpdate = millis();
@@ -40,6 +49,25 @@ public:
     }
     
     void loop() override {
+        if (cachedMessage != appScrollText) {
+            cachedMessage = appScrollText;
+            if (cachedMessage.length() == 0) {
+                cachedMessage = "circuito_suman";
+            }
+            msgLen = cachedMessage.length();
+            totalLengthPixels = msgLen * 6;
+            resetOffset();
+        }
+
+        if (appScrollDirectionOverride) {
+            const ScrollDir forcedDir = static_cast<ScrollDir>(constrain(appScrollDirection, 0, 3));
+            if (forcedDir != currentDir) {
+                currentDir = forcedDir;
+                pendingDir = currentDir;
+                resetOffset();
+            }
+        }
+
         handleInput();
         
         // Speed Control (Runs every 80ms)
@@ -53,6 +81,12 @@ public:
 private:
     // --- 1. INPUT LOGIC (2-Second Hold) ---
     void handleInput() {
+        if (appScrollDirectionOverride) {
+            pendingDir = currentDir;
+            tiltStartTime = millis();
+            return;
+        }
+
         ScrollDir detectedDir = currentDir; // Default to no change
 
         // Detect Tilt (Threshold ~3000)
@@ -105,7 +139,7 @@ private:
         clearDisplay();
 
         for (int charIdx = 0; charIdx < msgLen; charIdx++) {
-            char c = message[charIdx];
+            char c = cachedMessage[charIdx];
             int fontIdx = c - 32; // Map ASCII to font array
 
             // Calculate 'Virtual' position in the text string

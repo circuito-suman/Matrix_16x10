@@ -19,6 +19,8 @@ void IRAM_ATTR onTimer() {
     // 1. Turn off rows
     for (int i = 0; i < 10; i++) FAST_HIGH(ROWS[i]);
 
+
+
     // 2. Get Data from Global Canvas
     uint16_t rowBits = 0;
     for (int c = 0; c < 16; c++) {

@@ -42,5 +42,10 @@ extern SemaphoreHandle_t dispMutex;
 // Flag to trigger a mode switch
 extern volatile bool modeChangeRequest;
 extern volatile int requestedModeIndex;
+extern volatile int activeModeIndex;
+
+extern String appScrollText;
+extern volatile int appScrollDirection;
+extern volatile bool appScrollDirectionOverride;
 
 #define BUZZER_CHANNEL 4
