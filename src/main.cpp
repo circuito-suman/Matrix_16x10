@@ -6,6 +6,7 @@
 #include "drivers/DisplayDriver.h"
 #include "drivers/CommsManager.h"
 #include "ResourceMonitor.h"
+#include "drivers/CalibrationStorage.h"
 
 #ifndef VERSION_TAG
   #define VERSION_TAG "DEV-LOCAL"
@@ -37,6 +38,7 @@ float accX = 0, accY = 0;
 
 // NEW: Calibration Variables
 float calibX = 0, calibY = 0;
+volatile bool requestRecalibration = false;
 
 SemaphoreHandle_t dispMutex;
 volatile bool modeChangeRequest = false;
@@ -63,44 +65,54 @@ void taskGameEngine(void * parameter) {
     Wire.begin();
     Wire.setClock(400000); // 400kHz I2C Speed
     mpu.initialize();
-    
-    // --- 2. CALIBRATION SEQUENCE ---
-    // Visual Cue: Clear screen
-    xSemaphoreTake(dispMutex, portMAX_DELAY);
-    canvas.fillScreen(0);
-    xSemaphoreGive(dispMutex);
+    // --- 2. CALIBRATION: try to load saved calibration first ---
+    bool loaded = loadCalibration(calibX, calibY);
+    if (loaded) {
+        Serial.printf("[CALIB] loaded saved calibX=%f calibY=%f\n", calibX, calibY);
+    } else {
+        // Visual Cue: Clear screen
+        xSemaphoreTake(dispMutex, portMAX_DELAY);
+        canvas.fillScreen(0);
+        xSemaphoreGive(dispMutex);
 
-    long sumX = 0, sumY = 0;
-    const int SAMPLES = 100;
+        long sumX = 0, sumY = 0;
+        const int SAMPLES = 100;
 
-    // Collect 100 samples (takes ~1 second)
-    for(int i=0; i<SAMPLES; i++) {
-        int16_t rawX, rawY, rawZ;
-        mpu.getAcceleration(&rawX, &rawY, &rawZ);
-        
-        sumX += rawX;
-        sumY += rawY;
+        // Collect 100 samples (takes ~1 second)
+        for(int i=0; i<SAMPLES; i++) {
+            int16_t rawX, rawY, rawZ;
+            mpu.getAcceleration(&rawX, &rawY, &rawZ);
+            
+            sumX += rawX;
+            sumY += rawY;
 
-        // Blinking Center Dot Animation
-        if(i % 10 == 0) {
-            xSemaphoreTake(dispMutex, portMAX_DELAY);
-            // Toggle center pixel
-            bool on = (i / 10) % 2 == 0;
-            canvas.drawPixel(MATRIX_WIDTH/2, MATRIX_HEIGHT/2, on ? 1 : 0);
-            xSemaphoreGive(dispMutex);
+            // Blinking Center Dot Animation
+            if(i % 10 == 0) {
+                xSemaphoreTake(dispMutex, portMAX_DELAY);
+                // Toggle center pixel
+                bool on = (i / 10) % 2 == 0;
+                canvas.drawPixel(MATRIX_WIDTH/2, MATRIX_HEIGHT/2, on ? 1 : 0);
+                xSemaphoreGive(dispMutex);
+            }
+            vTaskDelay(10); // 10ms delay * 100 samples = 1000ms total
         }
-        vTaskDelay(10); // 10ms delay * 100 samples = 1000ms total
+
+        // Calculate Average Offset
+        calibX = (float)sumX / SAMPLES;
+        calibY = (float)sumY / SAMPLES;
+
+        // Save calibration
+        if (saveCalibration(calibX, calibY)) {
+            Serial.println("[CALIB] saved calibration to storage");
+        } else {
+            Serial.println("[CALIB] failed to save calibration");
+        }
+
+        // Clear Screen after calibration
+        xSemaphoreTake(dispMutex, portMAX_DELAY);
+        canvas.fillScreen(0);
+        xSemaphoreGive(dispMutex);
     }
-
-    // Calculate Average Offset
-    calibX = (float)sumX / SAMPLES;
-    calibY = (float)sumY / SAMPLES;
-
-    // Clear Screen after calibration
-    xSemaphoreTake(dispMutex, portMAX_DELAY);
-    canvas.fillScreen(0);
-    xSemaphoreGive(dispMutex);
-    // -------------------------------
 
     // 3. Instantiate Modes
     allModes[0] = new ModeMarble();
@@ -122,6 +134,24 @@ void taskGameEngine(void * parameter) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
 
     while(true) {
+        // If something requested recalibration (via BLE or other), perform it now
+        if (requestRecalibration) {
+            requestRecalibration = false;
+            Serial.println("[CALIB] requested: performing recalibration...");
+            long sumX = 0, sumY = 0;
+            const int SAMPLES = 100;
+            for(int i=0; i<SAMPLES; i++) {
+                int16_t rawX, rawY, rawZ;
+                mpu.getAcceleration(&rawX, &rawY, &rawZ);
+                sumX += rawX;
+                sumY += rawY;
+                vTaskDelay(10);
+            }
+            calibX = (float)sumX / SAMPLES;
+            calibY = (float)sumY / SAMPLES;
+            if (saveCalibration(calibX, calibY)) Serial.println("[CALIB] saved after recalibration");
+            else Serial.println("[CALIB] save failed after recalibration");
+        }
         // A. Read Sensors (Apply Calibration)
         int16_t rawX, rawY, rawZ;
         mpu.getAcceleration(&rawX, &rawY, &rawZ);

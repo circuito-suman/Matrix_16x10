@@ -16,6 +16,7 @@ extern MPU6050 mpu;        // The sensor
 extern float accX;         // Filtered X Acceleration
 extern float accY;         // Filtered Y Acceleration
 extern int16_t offsetX, offsetY; //Calibration Offsets
+extern volatile bool requestRecalibration;
 
 // --- Helper Functions for Modes ---
 inline void setPixel(int r, int c, bool on) {

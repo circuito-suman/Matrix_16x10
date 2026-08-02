@@ -1,4 +1,6 @@
 #include "CommsManager.h"
+#include "../Globals.h"
+#include "CalibrationStorage.h"
 #include "Globals.h"
 #include "Config.h"
 #include "MatrixProtocolCodec.h"
@@ -360,6 +362,20 @@ static void handleLegacyWrite(Source source, const std::vector<uint8_t>& data) {
             else if (cmd == "OTA_END") {
                 uint8_t status = STATUS_OK;
                 otaEnd(status);
+            }
+            else if (cmd == "CALIB_CLEAR") {
+                // Remove saved calibration and request recalibration
+                if (clearCalibration()) {
+                    requestRecalibration = true;
+                    Serial.println("[CALIB] cleared saved calibration (command)");
+                } else {
+                    Serial.println("[CALIB] failed to clear calibration (command)");
+                }
+            }
+            else if (cmd == "CALIB_NOW") {
+                // Request an immediate recalibration cycle
+                requestRecalibration = true;
+                Serial.println("[CALIB] recalibration requested (command)");
             }
             break;
         }
